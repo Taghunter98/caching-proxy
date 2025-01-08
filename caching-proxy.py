@@ -3,14 +3,25 @@ from urllib.request import Request, urlopen, HTTPError
 import os
 import argparse
 
-CACHE_DIR = "cache"
+CACHE_DIR = "Cache-X"
 
 def main():
     # Get CLI arguments
     parser = argparse.ArgumentParser()
-    parser.add_argument('--port', type=int, required=True, help="Port for the proxy server to listen on.")
-    parser.add_argument('--origin', type=str, required=True, help="Origin server URL to proxy requests to.")
+    parser.add_argument('--port', type=int, help="Port for the proxy server to listen on.")
+    parser.add_argument('--origin', type=str, help="Origin server URL to proxy requests to.")
+    parser.add_argument("--clear-cache", action="store_true", help="Clear the cahce files.")
     args = parser.parse_args()
+    
+     # Check for clear cache
+    if args.clear_cache:
+        clear_cache()
+        return
+    
+    # Validate args for server setup
+    if not args.port or not args.origin:
+        print_help()
+        return
     
     server_host = '0.0.0.0'
     server_port = args.port
@@ -25,8 +36,9 @@ def main():
     server_socket.bind((server_host, server_port))
     server_socket.listen(5)
     
-    print(f"Cache proxy is listening on port {server_port}, forwarding to {origin_url}...")
+    print(f"\r\nCache proxy is listening on port {server_port}, forwarding to {origin_url}...")
     
+    # Set up caching proxy server
     while True:
         client_connection, client_address = server_socket.accept()
         handle_client(client_connection, origin_url)
@@ -67,10 +79,10 @@ def fetch_file(path, origin_url):
     # Try to find file in cache
     file_from_cache = fetch_from_cache(path)
     if file_from_cache:
-        print("Fetched successfully from cache.")
+        print(f"\r\n{CACHE_DIR}: HIT")
         return file_from_cache
     
-    print("Not in cache. Fetching from server.")
+    print(f"\r\n{CACHE_DIR}: MISS")
     file_from_server = fetch_from_server(origin_url + path)
     if file_from_server:
         save_in_cache(path, file_from_server)
@@ -79,8 +91,9 @@ def fetch_file(path, origin_url):
 
 def fetch_from_cache(path):
     try:
+        # Look for file path 
         with open(os.path.join(CACHE_DIR, path.strip('/')), 'r') as cached_file:
-            return cached_file.read()
+            return cached_file.read() # Read and return file
     except FileNotFoundError:
         return None
 
@@ -102,6 +115,55 @@ def save_in_cache(path, content):
         print(f"Saved {path} to cache.")
     except Exception as e:
         print(f"Error saving to cache: {e}")
+
+def clear_cache():
+    dir = "./Cache-X"
+    
+    # Check if path exists
+    if not os.path.exists(dir):
+        print(f"\r\nCache directory '{dir}' does not exist.")
+        return
+    
+    # Iterate through files
+    for file in os.listdir(dir):
+        path = os.path.join(dir, file) # Join dir and file
+        try:
+            if os.path.isfile(path):
+                os.remove(path) # Remove file
+                print(f"\r\nDeleted file {path}")
+        except Exception as e:
+            print(f"Error deleting file {path}: {e}")
+    
+    print("Cache cleared successfully.")
+
+def print_help():
+    help_message = """
+    Caching Proxy Server - A simple caching proxy for HTTP requests.
+
+    Usage:
+      Run the proxy server:
+        python caching_proxy.py --port <PORT> --origin <ORIGIN_URL>
+          --port <PORT>:       Port for the proxy server to listen on.
+          --origin <ORIGIN_URL>: Origin server URL to forward requests to.
+
+      Clear the cache:
+        python caching_proxy.py --clear-cache
+          --clear-cache:       Clears all cached files in the cache directory.
+
+    Examples:
+      Start the proxy server on port 8080 and forward requests to http://example.com:
+        python caching_proxy.py --port 8080 --origin http://example.com
+
+      Clear the cache:
+        python caching_proxy.py --clear-cache
+
+    Notes:
+      - The `--port` and `--origin` arguments are required when starting the server.
+      - The `--clear-cache` argument is a standalone operation and does not require `--port` or `--origin`.
+
+    For additional information, see the documentation or contact the developer.
+    """
+    print(help_message)
 
 # Call main function
 if __name__ == "__main__":
